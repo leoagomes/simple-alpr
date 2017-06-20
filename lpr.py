@@ -5,16 +5,15 @@ from PIL import Image
 import pytesseract
 
 def lpr(image, show_steps = False):
-	if show_steps:
-		helper_imshow("Original Image", image)
-
 	ppimg = pre_process(image)
 	edgeimg = detect_edges(ppimg)
 	(out, approx, cnt) = find_license_plate(edgeimg)
 
-	
+	(prx, pry, prw, prh) = cv2.boundingRect(approx)
+	plate = ppimg[prx:prx+prw, pry:pry+prh].copy()
 
 	if show_steps:
+		helper_imshow("Original Image", image)
 		helper_imshow("Pre-Processed Image", ppimg)
 		helper_imshow("Edge Detection Result", edgeimg)
 
@@ -23,7 +22,7 @@ def lpr(image, show_steps = False):
 		cv2.drawContours(tmp, lst, 0, (255, 0, 0), 2)
 		cv2.drawContours(tmp, lst, 1, (0, 255, 0), 2)
 		cv2.drawContours(tmp, lst, 2, (0, 0, 255), 2)
-		helper_imshow("License Plate Area", tmp)
+		helper_imshow("License Plate Region", tmp)
 
 		helper_imwait()
 
@@ -73,7 +72,6 @@ def find_license_plate(image):
 
 			# 400 / 130 ~= 3.07... accept +- 0.3 error
 			if 2.7 < ratio and ratio < 3.4:
-				print("found?")
 				# TODO: check approx
 
 				# debug
@@ -83,10 +81,7 @@ def find_license_plate(image):
 
 				return (box, approx, contour)
 
-
-
-
-
+	sys.exit("No license plate found.")
 
 def helper_imshow(name, image):
 	cv2.imshow(name, image)
