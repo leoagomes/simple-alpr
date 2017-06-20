@@ -5,6 +5,8 @@ import sys
 from PIL import Image
 import pytesseract
 
+from matplotlib import pyplot as plt
+
 # scale up dimensions (400 * 3, 130 * 3) aka BR plate dimensions * 3
 plate_image_dimensions = (1200,390)
 
@@ -24,6 +26,7 @@ def lpr(image, show_steps = False):
 	# make the plate binary
 	binplate = binarize_plate(plate)
 
+	helper_imshow("plate", plate)
 	helper_showwait("binplate", binplate)
 
 	# show steps if the flag is set
@@ -51,23 +54,48 @@ def separate_resize_plate(image, out, apr, cnt):
 	cv2.drawContours(mask, [cnt], 0, (255, 255, 255), 2)
 	cleanimg = cv2.add(cleanimg, mask)
 
+	# calculate histogram
+	ri = cleanimg.ravel()
+	rm = mask.ravel()
+	hist = np.zeros(256)
+
+	for i in range(len(rm)):
+		if rm[i] == 0:
+			hist[ri[i]] += 1
+
+	plt.plot(range(256), hist); plt.show()
+
+	# cumulative histogram
+	cumulative = np.zeros_like(hist)
+	cumulative[0] = hist[0]
+	for i in range(len(cumulative) - 1):
+		cumulative[i + 1] = cumulative[i] + hist[i + 1]
+
+	pixels = cumulative[255]
+
+	# equalized image creation
+	(w,h) = cleanimg.shape
+	clone = cleanimg.copy()
+	for i in range(w):
+		for j in range(h):
+			if mask[i][j] == 0:
+				clone[i][j] = np.int8((255 / pixels) * cumulative[cleanimg[i][j]])
+
 	# work on the plate region
 	(prx, pry, prw, prh) = cv2.boundingRect(apr)
 	plate = cleanimg[pry:pry+prh, prx:prx+prw].copy()
 
 	# Resize the plate
 	plate = cv2.resize(plate, plate_image_dimensions)
-	return pre_process(plate)
+	return plate
 
 def binarize_plate(plate):
 	#result = cv2.adaptiveThreshold(plate, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, \
 		#cv2.THRESH_BINARY, 11, 2)
 
-	_, result = cv2.threshold(plate, 127, 255, cv2.THRESH_BINARY)
+	_, result = cv2.threshold(plate, 90, 255, cv2.THRESH_BINARY)
 	return result
 
-def calculate_Otsu(image):
-	histogram = cv2.calcHist([image])
 
 def pre_process(image):
 	# enhance image contrast
@@ -95,7 +123,7 @@ def detect_edges(image):
 	# Sobel operators on the image followed by an algorithm
 	# to better filter which (supposed) edges are "actually" edges.
 	# The output is a binary image.
-	out = cv2.Canny(image, 50, 70)
+	out = cv2.Canny(image, 90, 200, apertureSize=3, L2gradient=True)
 	return out
 
 def find_license_plate(image):
@@ -106,12 +134,18 @@ def find_license_plate(image):
 		approx = cv2.approxPolyDP(contour, cv2.arcLength(contour, True) * 0.05, True)
 
 		# find contours with 4 edges and the area of which is greater than threshold
-		if len(approx) == 4 and np.abs(cv2.contourArea(contour)) > area_threshold:
+		if len(approx) >= 4 and np.abs(cv2.contourArea(contour)) > area_threshold:
+			print(np.abs(cv2.contourArea(contour)))
 			rect = cv2.minAreaRect(contour)
 			box = np.int0(cv2.boxPoints(rect))
 			(box_w, box_h) = helper_boxwh(box)
 
 			ratio = box_w / box_h
+
+			# tmpimg = cv2.cvtColor(img.copy(), cv2.COLOR_GRAY2RGB)
+			# cv2.drawContours(tmpimg, [box, contour, approx], -1, (0,0,255), 2)
+			# cv2.drawContours(tmpimg, [box, contour, approx], 2, (0,255,0), 2)
+			# helper_showwait("CAIXA", tmpimg)
 
 			# brazilian license plate is 400mm x 130mm
 			# 400 / 130 ~= 3.07... accept +- 0.3 error
@@ -163,7 +197,7 @@ if len(sys.argv) < 2:
 image = cv2.imread(str(sys.argv[1]), cv2.IMREAD_GRAYSCALE)
 
 # TODO: remove // OR NOT (???), NORMALIZES IMAGE SIZES
-image = cv2.resize(image, (1280, 720))
+image = cv2.resize(image, (1600, 900))
 
 # Check the show steps argument
 show_steps = False
