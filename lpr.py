@@ -31,10 +31,18 @@ def lpr(image, show_steps = False, show_contour = True, show_plates = True, show
 
     # TODO: talvez dê pra desfocar a imagem antes do binário e mudar os thresholds
     # make the plate binary
-    binplate = binarize_plate(plate, hist)
+    binplate, thresh = binarize_plate(plate, hist)
+
+    if show_hist:
+        plt.plot(range(256), hist)
+        plt.axvline(thresh)
+        plt.show()
 
     # dilate and erode image to remove small letters and screws
     clearplate = remove_plate_details(binplate)
+
+    # remove other smaller than the number components
+    clearplate = plate_remove_nonconforming(clearplate)
 
     if show_plates:
         helper_imshow("plate", plate)
@@ -54,7 +62,7 @@ def lpr(image, show_steps = False, show_contour = True, show_plates = True, show
 
     return "NOT AVAILABLE"
 
-def separate_resize_plate(image, out, apr, cnt, show_hist = True):
+def separate_resize_plate(image, out, apr, cnt, show_hist = False):
     # Create an image containing only the plate
     cleanimg = image.copy()
     mask = np.full_like(cleanimg, 255)
@@ -70,9 +78,6 @@ def separate_resize_plate(image, out, apr, cnt, show_hist = True):
     for i in range(len(rm)):
         if rm[i] == 0:
             hist[ri[i]] += 1
-
-    if show_hist:
-        plt.plot(range(256), hist); plt.show()
 
     # cumulative histogram
     cumulative = np.zeros_like(hist)
@@ -104,10 +109,10 @@ def binarize_plate(plate, hist):
 
     thresh = calculate_otsu(hist)
     print("Thresh: ", thresh)
-    _, result = cv2.threshold(plate, thresh, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-    return result
+    _, result = cv2.threshold(plate, thresh, 255, cv2.THRESH_BINARY)# | cv2.THRESH_OTSU)
+    return result, thresh
 
-def calculate_otsu(hist): # from opencv tutorials
+def calculate_otsu(hist): # adapted from wikipedia
     nbins = 256
     p = hist / np.sum(hist)
     sigma_b = np.zeros((256,1))
@@ -127,10 +132,44 @@ def calculate_otsu(hist): # from opencv tutorials
 # remove small details of a plate, as the city name and screws
 def remove_plate_details(plate):
     # make small details dissapear
-    result = cv2.dilate(plate, np.ones((21,21), np.uint8), iterations = 1)
+    result = cv2.dilate(plate, np.ones((5,5), np.uint8), iterations = 2)
     # those which weren't that small are back but there are less of them
-    result = cv2.erode(result, np.ones((21,21), np.uint8), iterations = 1)
+    result = cv2.erode(result, np.ones((5,5), np.uint8), iterations = 2)
     return result
+
+def plate_remove_nonconforming(plate):
+    num_area_min, num_area_max = 5000, 50000
+    inverted = cv2.bitwise_not(plate)
+    img, contours, hi = cv2.findContours(inverted, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    curr_hi = hi[0]
+    curr_cnt = 0
+    while curr_cnt != -1:
+        contour = contours[curr_cnt]
+
+        approx = cv2.approxPolyDP(contour, cv2.arcLength(contour, True) * 0.05, True)
+        rect = cv2.minAreaRect(contour)
+        box = np.int0(cv2.boxPoints(rect))
+
+        bw, bh = helper_boxwh(box)
+        ratio = bw/bh
+        print(np.abs(cv2.contourArea(contour)), bw, bh, bw/bh)
+
+        area = np.abs(cv2.contourArea(contour))
+        if area < num_area_min or area > num_area_max or ratio < 1.20 or ratio > 6.90:
+            cv2.drawContours(img, [contour], 0, (0,0,0), -1)
+
+            tmpimg = cv2.cvtColor(img.copy(), cv2.COLOR_GRAY2RGB)
+
+            # cv2.drawContours(tmpimg, [box, contour, approx], 0, (0,0,255), 2)
+            # cv2.drawContours(tmpimg, [box, contour, approx], 1, (255,0,0), 2)
+            # cv2.drawContours(tmpimg, [box, contour, approx], 2, (0,255,0), 2)
+            # helper_showwait("CAIXA", tmpimg)
+
+        curr_cnt = curr_hi[curr_cnt][0]
+
+    return cv2.bitwise_not(inverted)
+
 
 def pre_process(image):
     # enhance image contrast
