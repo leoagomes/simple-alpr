@@ -29,7 +29,6 @@ def lpr(image, show_steps = False, show_contour = True, show_plates = True, show
     # get the region where the license plate is
     (ok, out, approx, cnt) = try_get_license_plate(ppimg, edgeimg)
 
-
     # show steps if the flag is set
     if show_contour:
         tmp = cv2.cvtColor(ppimg.copy(), cv2.COLOR_GRAY2RGB)
@@ -74,7 +73,9 @@ def lpr(image, show_steps = False, show_contour = True, show_plates = True, show
 
         helper_imwait()
 
-    return "NOT AVAILABLE"
+    text = pytesseract.image_to_string(Image.fromarray(clearplate), config="-c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    text = ' '.join(text.split())
+    return text
 
 def try_get_license_plate(image, edgeimg):
     (ok, out, approx, cnt) = find_license_plate(edgeimg)
@@ -82,28 +83,27 @@ def try_get_license_plate(image, edgeimg):
     if ok:
         return ok, out, approx, cnt
 
-    _, otsuimg = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    # _, otsuimg = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    # helper_showwait("otsu", otsuimg)
 
-    helper_showwait("otsu", otsuimg)
+    # (ok, out, approx, cnt) = find_license_plate(otsuimg)
 
-    (ok, out, approx, cnt) = find_license_plate(otsuimg)
+    # if ok:
+    #     return ok, out, approx, cnt
 
-    if ok:
-        return ok, out, approx, cnt
+    # adaptimg = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, \
+    #         cv2.THRESH_BINARY, 35, 10)
 
-    adaptimg = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, \
-            cv2.THRESH_BINARY, 35, 10)
+    # # adaptimg = cv2.bitwise_not(adaptimg)
+    # # adaptimg = cv2.dilate(adaptimg, np.ones((3,3), np.uint8), iterations = 1)
+    # # result = cv2.erode(result, np.ones((5,5), np.uint8), iterations = 2)
 
-    # adaptimg = cv2.bitwise_not(adaptimg)
-    # adaptimg = cv2.dilate(adaptimg, np.ones((3,3), np.uint8), iterations = 1)
-    # result = cv2.erode(result, np.ones((5,5), np.uint8), iterations = 2)
+    # helper_showwait("adapt", adaptimg)
 
-    helper_showwait("adapt", adaptimg)
+    # (ok, out, approx, cnt) = find_license_plate(adaptimg)
 
-    (ok, out, approx, cnt) = find_license_plate(adaptimg)
-
-    if ok:
-        return ok, out, approx, cnt
+    # if ok:
+    #     return ok, out, approx, cnt
 
     return False, None, None, None
 
@@ -194,7 +194,7 @@ def plate_remove_nonconforming(plate):
 
         bw, bh = helper_boxwh(box)
         ratio = bh/bw
-        print(np.abs(cv2.contourArea(contour)), bw, bh, bw/bh)
+        # print(np.abs(cv2.contourArea(contour)), bw, bh, bw/bh)
 
         area = np.abs(cv2.contourArea(contour))
         if area < num_area_min or area > num_area_max or ratio < 1.20 or ratio > 6.90:
@@ -202,10 +202,11 @@ def plate_remove_nonconforming(plate):
 
             tmpimg = cv2.cvtColor(img.copy(), cv2.COLOR_GRAY2RGB)
 
+            # PRESENTATION DEMO
             # cv2.drawContours(tmpimg, [box, contour, approx], 0, (0,0,255), 2)
             # cv2.drawContours(tmpimg, [box, contour, approx], 1, (255,0,0), 2)
             # cv2.drawContours(tmpimg, [box, contour, approx], 2, (0,255,0), 2)
-            # helper_showwait("CAIXA", tmpimg)
+            # helper_showwait("Testing", tmpimg)
 
         curr_cnt = curr_hi[curr_cnt][0]
 
@@ -240,7 +241,7 @@ def detect_edges(image):
 def find_license_plate(image, accepted_ratio = 3.07, error = 0.37):
     area_threshold = 2000 # arbitrary threshold for plate area in image.
     img, contours, h = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    print(h)
+    # print(h)
     for contour in contours:
         approx = cv2.approxPolyDP(contour, cv2.arcLength(contour, True) * 0.05, True)
 
@@ -254,11 +255,12 @@ def find_license_plate(image, accepted_ratio = 3.07, error = 0.37):
 
             # print(np.abs(cv2.contourArea(contour)), box_w, box_h, ratio)
 
+            # PRESENTATION DEMO
             # tmpimg = cv2.cvtColor(img.copy(), cv2.COLOR_GRAY2RGB)
             # cv2.drawContours(tmpimg, [box, contour, approx], 0, (0,0,255), 2)
             # cv2.drawContours(tmpimg, [box, contour, approx], 1, (255,0,0), 2)
             # cv2.drawContours(tmpimg, [box, contour, approx], 2, (0,255,0), 2)
-            # helper_showwait("CAIXA", tmpimg)
+            # helper_showwait("SELECTED", tmpimg)
 
             # brazilian license plate is 400mm x 130mm
             # 400 / 130 ~= 3.07... accept +- 0.3 error
