@@ -1,0 +1,11 @@
+Working Image number (<num>.jpg) - Problem at step (* means it works properly):
+	00 - Tesseract
+	01 - Tesseract (1 = I)
+	06 - *
+	08 - *
+	10 - *
+	11 - Tesseract
+	16 - Tesseract (0 = D)
+	17 - Contour (I deleted, ratio = 1?) - Tesseract 0
+	18 - Contour (I deleted, ratio = 7)
+	20 - *
